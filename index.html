@@ -1,356 +1,448 @@
-package com.myApp;
-
-public interface RBI {
-    double RBI_BASE_RATE = 3.0; // base interest rate from RBI (in percent)
-    double MIN_BALANCE = 5000.0; // minimum balance required
-
-    // bank must implement these operations
-    void createAccount();
-    void depositMoney();
-    void withdrawMoney();
-    void openFD();
-    void applyLoan();
-}
-
-
-package com.myApp;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.util.UUID;
-
-public abstract class AbstractBank implements RBI {
-    protected String bankName;
-    protected double extraRate; // bank-specific extra rate (on top of RBI_BASE_RATE)
-    protected BufferedReader buff;
-    protected Customer currentCustomer;
-
-    public AbstractBank(String bankName, double extraRate, BufferedReader buff) {
-        this.bankName = bankName;
-        this.extraRate = extraRate;
-        this.buff = buff;
-    }
-
-    protected String generateAccountNumber() {
-        // Generates a readable account number: bank prefix + UUID short
-        String prefix = bankName.substring(0, Math.min(bankName.length(), 4)).toUpperCase();
-        String uid = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-        return prefix + uid;
-    }
-
-    protected double totalInterestRate() {
-        return RBI_BASE_RATE + extraRate;
-    }
-
-    @Override
-    public void createAccount() {
-        try {
-            System.out.println("---Account Creation Form for " + bankName + "---");
-
-            System.out.println("Enter Your Name");
-            String name = buff.readLine();
-
-            System.out.println("Enter Your Phone");
-            String phone = buff.readLine();
-
-            System.out.println("Enter Your Aadhar Number");
-            String aadhar = buff.readLine();
-
-            System.out.println("Enter Your PAN Number");
-            String pan = buff.readLine();
-
-            double balance = MIN_BALANCE;
-            String accountNumber = generateAccountNumber();
-
-            currentCustomer = new Customer(name, phone, aadhar, pan, balance, accountNumber);
-
-            System.out.println("-----Account Created Successfully at " + bankName + "-----");
-            System.out.println("Account Number: " + currentCustomer.getAccountNumber());
-            System.out.println("Name: " + currentCustomer.getCustName());
-            System.out.println("Balance: " + currentCustomer.getBalance());
-            System.out.println("Minimum Balance enforced: " + MIN_BALANCE);
-            System.out.println("Applicable Interest Rate: " + totalInterestRate() + "%");
-
-        } catch (IOException e) {
-            System.out.println("Error while creating account: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public void depositMoney() {
-        try {
-            if (currentCustomer == null) {
-                System.out.println("No customer exists. Create account first.");
-                return;
-            }
-            System.out.println("Enter amount to deposit:");
-            String amtStr = buff.readLine();
-            double amt = Double.parseDouble(amtStr);
-            if (amt <= 0) {
-                System.out.println("Deposit amount must be positive.");
-                return;
-            }
-            currentCustomer.setBalance(currentCustomer.getBalance() + amt);
-            System.out.println("Deposit successful. New balance: " + currentCustomer.getBalance());
-        } catch (IOException e) {
-            System.out.println("Error during deposit: " + e.getMessage());
-        } catch (NumberFormatException ne) {
-            System.out.println("Invalid number format.");
-        }
-    }
-
-    @Override
-    public void withdrawMoney() {
-        try {
-            if (currentCustomer == null) {
-                System.out.println("No customer exists. Create account first.");
-                return;
-            }
-            System.out.println("Enter amount to withdraw:");
-            String amtStr = buff.readLine();
-            double amt = Double.parseDouble(amtStr);
-            if (amt <= 0) {
-                System.out.println("Withdrawal amount must be positive.");
-                return;
-            }
-            double newBalance = currentCustomer.getBalance() - amt;
-            if (newBalance < MIN_BALANCE) {
-                System.out.println("Cannot withdraw. Minimum balance of " + MIN_BALANCE + " must be maintained.");
-                return;
-            }
-            currentCustomer.setBalance(newBalance);
-            System.out.println("Withdrawal successful. New balance: " + currentCustomer.getBalance());
-        } catch (IOException e) {
-            System.out.println("Error during withdrawal: " + e.getMessage());
-        } catch (NumberFormatException ne) {
-            System.out.println("Invalid number format.");
-        }
-    }
-
-    @Override
-    public void openFD() {
-        try {
-            if (currentCustomer == null) {
-                System.out.println("No customer exists. Create account first.");
-                return;
-            }
-            System.out.println("Enter FD amount (minimum " + MIN_BALANCE + "):");
-            String amtStr = buff.readLine();
-            double amt = Double.parseDouble(amtStr);
-            if (amt < MIN_BALANCE) {
-                System.out.println("FD amount should be at least " + MIN_BALANCE);
-                return;
-            }
-            System.out.println("Enter tenure in years (e.g., 1, 2, 3):");
-            String tenureStr = buff.readLine();
-            int years = Integer.parseInt(tenureStr);
-
-            double rate = totalInterestRate();
-            double maturity = amt * Math.pow(1 + rate / 100.0, years);
-
-            System.out.println("FD opened at " + rate + "% for " + years + " years.");
-            System.out.println("Maturity amount: " + String.format("%.2f", maturity));
-        } catch (IOException e) {
-            System.out.println("Error opening FD: " + e.getMessage());
-        } catch (NumberFormatException ne) {
-            System.out.println("Invalid number format.");
-        }
-    }
-
-    @Override
-    public void applyLoan() {
-        try {
-            if (currentCustomer == null) {
-                System.out.println("No customer exists. Create account first.");
-                return;
-            }
-            System.out.println("Enter loan amount:");
-            String loanStr = buff.readLine();
-            double loanAmt = Double.parseDouble(loanStr);
-            System.out.println("Enter tenure in years:");
-            String tenureStr = buff.readLine();
-            int years = Integer.parseInt(tenureStr);
-
-            double rate = totalInterestRate() + 2.0; // banks charge extra spread on loans
-            double emi = calculateEMI(loanAmt, rate, years);
-
-            System.out.println("Loan eligible at rate: " + rate + "% per annum.");
-            System.out.println("Estimated EMI: " + String.format("%.2f", emi));
-        } catch (IOException e) {
-            System.out.println("Error applying loan: " + e.getMessage());
-        } catch (NumberFormatException ne) {
-            System.out.println("Invalid number format.");
-        }
-    }
-
-    protected double calculateEMI(double principal, double annualRatePercent, int years) {
-        double monthlyRate = annualRatePercent / 100.0 / 12.0;
-        int n = years * 12;
-        if (monthlyRate == 0) return principal / n;
-        double emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, n)) /
-                     (Math.pow(1 + monthlyRate, n) - 1);
-        return emi;
-    }
-}
-
-                package com.myApp;
-
-import java.io.BufferedReader;
-
-public class ICICI extends AbstractBank {
-    public ICICI(BufferedReader buff) {
-        // ICICI decides to add 1.5% on top of RBI base
-        super("ICICI", 1.5, buff);
-    }
-
-    // Example override: ICICI gives small bonus on deposit (override deposit)
-    @Override
-    public void depositMoney() {
-        super.depositMoney(); // do base deposit
-        if (currentCustomer != null) {
-            // small cashback bonus for deposits > 10000
-            double bal = currentCustomer.getBalance();
-            if (bal > 10000) {
-                double bonus = 50.0;
-                currentCustomer.setBalance(bal + bonus);
-                System.out.println("ICICI Bonus credited: " + bonus + ". New balance: " + currentCustomer.getBalance());
-            }
-        }
-    }
-}
-
-                package com.myApp;
-
-public class Customer {
-    String custName, custPhone, custAdhaar, custPan, accountNumber;
-    double balance;
-
-    public Customer() {
-        super();
-    }
-
-    public Customer(String custName, String custPhone, String custAdhaar, String custPan, double balance, String accountNumber) {
-        super();
-        this.custName = custName;
-        this.custPhone = custPhone;
-        this.custAdhaar = custAdhaar;
-        this.custPan = custPan;
-        this.balance = balance;
-        this.accountNumber = accountNumber;
-    }
-
-    public String getCustName() { return custName; }
-    public void setCustName(String custName) { this.custName = custName; }
-
-    public String getCustPhone() { return custPhone; }
-    public void setCustPhone(String custPhone) { this.custPhone = custPhone; }
-
-    public String getCustAdhaar() { return custAdhaar; }
-    public void setCustAdhaar(String custAdhaar) { this.custAdhaar = custAdhaar; }
-
-    public String getCustPan() { return custPan; }
-    public void setCustPan(String custPan) { this.custPan = custPan; }
-
-    public double getBalance() { return balance; }
-    public void setBalance(double balance) { this.balance = balance; }
-
-    public String getAccountNumber() { return accountNumber; }
-    public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
-}
-
-                package com.myApp;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-
-public class BankOperations {
-    BufferedReader buff;
-    RBI selectedBank;
-
-    public BankOperations(BufferedReader buff) {
-        this.buff = buff;
-    }
-
-    // build bank object based on choice
-    public void selectBank(int choice) {
-        switch (choice) {
-            case 1: selectedBank = new ICICI(buff); break;
-            case 2: selectedBank = new HDFC(buff); break;
-            case 3: selectedBank = new HSBC(buff); break;
-            case 4: selectedBank = new AXIS(buff); break;
-            case 5: selectedBank = new SBI(buff); break;
-            default: selectedBank = null; System.out.println("Invalid bank choice."); return;
-        }
-        System.out.println(((AbstractBank)selectedBank).bankName + " selected.");
-    }
-
-    public void performOperation(int op) {
-        if (selectedBank == null) {
-            System.out.println("No bank selected. Please select a bank first.");
-            return;
-        }
-        switch (op) {
-            case 1: selectedBank.createAccount(); break;
-            case 2: selectedBank.depositMoney(); break;
-            case 3: selectedBank.withdrawMoney(); break;
-            case 4: selectedBank.openFD(); break;
-            case 5: selectedBank.applyLoan(); break;
-            default: System.out.println("Invalid operation."); break;
-        }
-    }
-}
-
-                package com.myApp;
-
+package RBI.IBS;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-public class MainApp {
+	public class Main {
 
-    public static void main(String[] args) {
-        InputStreamReader isr = new InputStreamReader(System.in);
-        BufferedReader buff = new BufferedReader(isr);
-        BankOperations ops = new BankOperations(buff);
+	    public static void main(String[] args) {
+	        InputStreamReader isr = new InputStreamReader(System.in);
+	        BufferedReader buff = new BufferedReader(isr);
+	        BankOperations ops = new BankOperations(buff);
 
-        boolean exit = false;
-        try {
-            while (!exit) {
-                System.out.println("\nWelcome to Indian Banking System (IBS)");
-                System.out.println("Please select your bank");
-                System.out.println("1. ICICI\n2. HDFC\n3. HSBC\n4. AXIS\n5. SBI\n6. Exit");
-                String bankChoice = buff.readLine();
-                if (bankChoice == null) continue;
-                int bchoice = Integer.parseInt(bankChoice);
-                if (bchoice == 6) {
-                    System.out.println("Exiting. Thank you!");
-                    break;
-                }
-                ops.selectBank(bchoice);
+	        boolean exit = false;
+	        try {
+	            while (!exit) {
+	                System.out.println("\nWelcome to Indian Banking System (IBS)");
+	                System.out.println("Please select your bank");
+	                System.out.println("1. ICICI\n2. HDFC\n3. HSBC\n4. AXIS\n5. SBI\n6. Exit");
+	                String bankChoice = buff.readLine();
+	                if (bankChoice == null) continue;
+	                int bchoice = Integer.parseInt(bankChoice);
+	                if (bchoice == 6) {
+	                    System.out.println("Exiting. Thank you!");
+	                    break;
+	                }
+	                ops.selectBank(bchoice);
 
-                boolean backToBankMenu = false;
-                while (!backToBankMenu) {
-                    System.out.println("\nPlease select your Operation");
-                    System.out.println("1. Create Account\n2. Deposit\n3. Withdraw\n4. Open FD\n5. Apply Loan\n6. Back to Bank Selection\n7. Exit");
-                    String opStr = buff.readLine();
-                    if (opStr == null) continue;
-                    int op = Integer.parseInt(opStr);
-                    if (op == 7) {
-                        exit = true;
-                        System.out.println("Exiting. Thank you!");
-                        break;
-                    } else if (op == 6) {
-                        backToBankMenu = true;
-                        break;
-                    } else {
-                        ops.performOperation(op);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            System.out.println("I/O Error: " + e.getMessage());
-        } catch (NumberFormatException nfe) {
-            System.out.println("Invalid input. Please enter numeric choices.");
-        }
-    }
+	                boolean backToBankMenu = false;
+	                while (!backToBankMenu) {
+	                    System.out.println("\nPlease select your Operation");
+	                    System.out.println("1. Create Account\n2. Deposit\n3. Withdraw\n4. Open FD\n5. Apply Loan\n6. Back to Bank Selection\n7. Exit");
+	                    String opStr = buff.readLine();
+	                    if (opStr == null) continue;
+	                    int op = Integer.parseInt(opStr);
+	                    if (op == 7) {
+	                        exit = true;
+	                        System.out.println("Exiting. Thank you!");
+	                        break;
+	                    } else if (op == 6) {
+	                        backToBankMenu = true;
+	                        break;
+	                    } else {
+	                        ops.performOperation(op);
+	                    }
+	                }
+	         }
+	        } catch (IOException e) {
+	            System.out.println("I/O Error: " + e.getMessage());
+	        } catch (NumberFormatException nfe) {
+	            System.out.println("Invalid input. Please enter numeric choices.");
+	        }
+	    }
+	}
+
+
+
+
+package RBI.IBS;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+
+	public class Main {
+
+	    public static void main(String[] args) {
+	        InputStreamReader isr = new InputStreamReader(System.in);
+	        BufferedReader buff = new BufferedReader(isr);
+	        BankOperations ops = new BankOperations(buff);
+
+	        boolean exit = false;
+	        try {
+	            while (!exit) {
+	                System.out.println("\nWelcome to Indian Banking System (IBS)");
+	                System.out.println("Please select your bank");
+	                System.out.println("1. ICICI\n2. HDFC\n3. HSBC\n4. AXIS\n5. SBI\n6. Exit");
+	                String bankChoice = buff.readLine();
+	                if (bankChoice == null) continue;
+	                int bchoice = Integer.parseInt(bankChoice);
+	                if (bchoice == 6) {
+	                    System.out.println("Exiting. Thank you!");
+	                    break;
+	                }
+	                ops.selectBank(bchoice);
+
+	                boolean backToBankMenu = false;
+	                while (!backToBankMenu) {
+	                    System.out.println("\nPlease select your Operation");
+	                    System.out.println("1. Create Account\n2. Deposit\n3. Withdraw\n4. Open FD\n5. Apply Loan\n6. Back to Bank Selection\n7. Exit");
+	                    String opStr = buff.readLine();
+	                    if (opStr == null) continue;
+	                    int op = Integer.parseInt(opStr);
+	                    if (op == 7) {
+	                        exit = true;
+	                        System.out.println("Exiting. Thank you!");
+	                        break;
+	                    } else if (op == 6) {
+	                        backToBankMenu = true;
+	                        break;
+	                    } else {
+	                        ops.performOperation(op);
+	                    }
+	                }
+	         }
+	        } catch (IOException e) {
+	            System.out.println("I/O Error: " + e.getMessage());
+	        } catch (NumberFormatException nfe) {
+	            System.out.println("Invalid input. Please enter numeric choices.");
+	        }
+	    }
+	}
+
+
+
+package RBI.IBS;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+
+	public class Main {
+
+	    public static void main(String[] args) {
+	        InputStreamReader isr = new InputStreamReader(System.in);
+	        BufferedReader buff = new BufferedReader(isr);
+	        BankOperations ops = new BankOperations(buff);
+
+	        boolean exit = false;
+	        try {
+	            while (!exit) {
+	                System.out.println("\nWelcome to Indian Banking System (IBS)");
+	                System.out.println("Please select your bank");
+	                System.out.println("1. ICICI\n2. HDFC\n3. HSBC\n4. AXIS\n5. SBI\n6. Exit");
+	                String bankChoice = buff.readLine();
+	                if (bankChoice == null) continue;
+	                int bchoice = Integer.parseInt(bankChoice);
+	                if (bchoice == 6) {
+	                    System.out.println("Exiting. Thank you!");
+	                    break;
+	                }
+	                ops.selectBank(bchoice);
+
+	                boolean backToBankMenu = false;
+	                while (!backToBankMenu) {
+	                    System.out.println("\nPlease select your Operation");
+	                    System.out.println("1. Create Account\n2. Deposit\n3. Withdraw\n4. Open FD\n5. Apply Loan\n6. Back to Bank Selection\n7. Exit");
+	                    String opStr = buff.readLine();
+	                    if (opStr == null) continue;
+	                    int op = Integer.parseInt(opStr);
+	                    if (op == 7) {
+	                        exit = true;
+	                        System.out.println("Exiting. Thank you!");
+	                        break;
+	                    } else if (op == 6) {
+	                        backToBankMenu = true;
+	                        break;
+	                    } else {
+	                        ops.performOperation(op);
+	                    }
+	                }
+	         }
+	        } catch (IOException e) {
+	            System.out.println("I/O Error: " + e.getMessage());
+	        } catch (NumberFormatException nfe) {
+	            System.out.println("Invalid input. Please enter numeric choices.");
+	        }
+	    }
+	}
+
+
+
+
+package RBI.IBS;
+import java.io.BufferedReader;
+
+
+public class BankOperations {
+	 BufferedReader buff;
+	    RBI selectedBank;
+
+	    public BankOperations(BufferedReader buff) {
+	        this.buff = buff;
+	    }
+
+	    // build bank object based on choice
+	    public void selectBank(int choice) {
+	        switch (choice) {
+	            case 1: selectedBank = new ICICI(buff); break;
+	            case 2: selectedBank = new HDFC(buff); break;
+	            case 3: selectedBank = new HSBC(buff); break;
+	            case 4: selectedBank = new AXIS(buff); break;
+	            case 5: selectedBank = new SBI(buff); break;
+	            default: selectedBank = null; System.out.println("Invalid bank choice."); return;
+	        }
+	        System.out.println(((AbstractBank)selectedBank).bankName + " selected.");
+	    }
+
+	    public void performOperation(int op) {
+//	        if (selectedBank == null) {
+//	            System.out.println("No bank selected. Please select a bank first.");
+//	            return;
+//	        }
+	        switch (op) {
+	            case 1: selectedBank.createAccount(); break;
+	            case 2: selectedBank.depositMoney(); break;
+	            case 3: selectedBank.withdrawMoney(); break;
+	            case 4: selectedBank.openFD(); break;
+	            case 5: selectedBank.applyLoan(); break;
+	            default: System.out.println("Invalid operation."); break;
+	        }
+	    }
 }
+
+
+package RBI.IBS;
+
+public class Customer {
+	 String custName, custPhone, custAdhaar, custPan, accountNumber;
+	    double balance;
+
+	    public Customer() {
+	        super();
+	    }
+
+	    public Customer(String custName, String custPhone, String custAdhaar, String custPan, double balance, String accountNumber) {
+	        super();
+	        this.custName = custName;
+	        this.custPhone = custPhone;
+	        this.custAdhaar = custAdhaar;
+	        this.custPan = custPan;
+	        this.balance = balance;
+	        this.accountNumber = accountNumber;
+	    }
+
+	    public String getCustName() { return custName; }
+	    public void setCustName(String custName) { this.custName = custName; }
+
+	    public String getCustPhone() { return custPhone; }
+	    public void setCustPhone(String custPhone) { this.custPhone = custPhone; }
+
+	    public String getCustAdhaar() { return custAdhaar; }
+	    public void setCustAdhaar(String custAdhaar) { this.custAdhaar = custAdhaar; }
+
+	    public String getCustPan() { return custPan; }
+	    public void setCustPan(String custPan) { this.custPan = custPan; }
+
+	    public double getBalance() { return balance; }
+	    public void setBalance(double balance) { this.balance = balance; }
+
+	    public String getAccountNumber() { return accountNumber; }
+	    public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
+
+}
+
+
+package RBI.IBS;
+import java.io.BufferedReader;
+import java.io.IOException;
+
+public class HDFC extends AbstractBank {
+	
+		public HDFC(BufferedReader buff) {
+			super("HDFC",2.0,buff);
+		}
+		public void openFD() {
+			try {
+				if(currentCustomer == null) {
+					System.out.println("No customer exists: Create account first ");
+					return;
+				}
+				System.out.println("Enter FD Amount (mininum "+  MIN_BALANCE +"):");
+				String amtStr = buff.readLine();
+				double amt = Double.parseDouble(amtStr);
+				if(amt< MIN_BALANCE) {
+				
+					   System.out.println("FD amount should be at least " + MIN_BALANCE);
+		                return;
+		            }
+		            
+		            System.out.println("Enter tenure in years (e.g., 1, 2, 3):");
+		            String tenureStr = buff.readLine();
+		            int years = Integer.parseInt(tenureStr);
+
+		            double rate = totalInterestRate();
+		            double maturity = amt * Math.pow(1 + rate / 100.0, years);
+
+		            System.out.println("FD opened at " + rate + "% for " + years + " years.");
+		            System.out.println("Maturity amount: " + String.format("%.2f", maturity));
+			}
+			catch(IOException e) {
+				System.out.println("Error Opening FD");
+			}
+		}
+}
+
+
+                    package RBI.IBS;
+import java.io.BufferedReader;
+import java.io.IOException;
+
+public  class HSBC extends AbstractBank{
+		
+	public HSBC(BufferedReader buff) {
+		super("HSBC",1.0,buff);
+	}
+	
+	public void applyLoan() {
+		try {
+			if(currentCustomer == null) {
+				System.out.println("No customer exists: Create account first ");
+				return;
+			}
+			System.out.println("Enter FD Amount (mininum "+  MIN_BALANCE +"):");
+			String loanStr = buff.readLine();
+			double loanAmt = Double.parseDouble(loanStr);
+			
+			System.out.println("Enter tenure in years ");
+            String tenureStr = buff.readLine();
+            int years = Integer.parseInt(tenureStr);
+
+            double rate = totalInterestRate();
+            double emi = calculateEMI(loanAmt,rate,years) ;
+            
+            System.out.println("HSBC Loan Apporved at rate");
+		}
+		catch(IOException e) {
+			System.out.println("Error while applying loan");
+		}
+	}
+	
+	
+}
+
+
+                    package RBI.IBS;
+import java.io.BufferedReader;
+import java.io.IOException;
+
+public class ICICI extends AbstractBank {
+		
+	public ICICI(BufferedReader buff) {
+		super("ICICI",1.5,buff);
+	}
+	
+	public void depositMoney() {
+		try {
+			if(currentCustomer == null) {
+				System.out.println("No customer exists. Create Account First");
+				return;
+			}
+			System.out.println("Enter account number : ");
+			String accNo = buff.readLine();
+			
+			if(findCustomer(accNo)) {
+				System.out.println("Enter amount to deposit");
+				String amtStr = buff.readLine();
+				double amt = Double.parseDouble(amtStr);
+				if(amt <= 0) {
+					System.out.println("Deposit amount must be positive");
+					return;
+				}
+				currentCustomer.setBalance(currentCustomer.getBalance() + amt);
+				System.out.println("Deposit Successful New Balance: " + currentCustomer.getBalance());
+			}
+			else {
+				System.out.println("Account not found !!");
+				return;
+			}
+		}
+		
+		catch(IOException e) {
+			System.out.println("Errroe while depositing money");
+		}
+	}
+	
+	
+}
+
+
+                    package RBI.IBS;
+
+
+	public interface RBI {
+		double RBI_BASE_RATE = 3.0;
+		double MIN_BALANCE = 5000.0;
+		
+		
+		void createAccount();
+		void depositMoney();
+		void withdrawMoney();
+		void openFD();
+		void applyLoan();
+	}
+
+
+
+                    package RBI.IBS;
+import java.io.BufferedReader;
+import java.io.IOException;
+
+public  class SBI extends AbstractBank{
+		
+	public SBI(BufferedReader buff) {
+		super("SBI",1.2,buff);
+	}
+	public void createAccount() {
+		try {
+			 System.out.println("---Account Creation Form for " + bankName + "---");
+
+	            System.out.println("Enter Your Name");
+	            String name = buff.readLine();
+
+	            System.out.println("Enter Your Phone");
+	            String phone = buff.readLine();
+
+	            System.out.println("Enter Your Aadhar Number");
+	            String aadhar = buff.readLine();
+
+	            System.out.println("Enter Your PAN Number");
+	            String pan = buff.readLine();
+	            
+	            if(!pan.startsWith("A")) {
+	            	System.out.println("Invalid PAN format  Account not created");
+	            	return;
+	            }
+
+	            double balance = MIN_BALANCE;
+	            String accountNumber = generateAccountNumber();
+
+	            currentCustomer = new Customer(name, phone, aadhar, pan, balance, accountNumber);
+
+	            System.out.println("-----Account Created Successfully at " + bankName + "-----");
+	            System.out.println("Account Number: " + currentCustomer.getAccountNumber());
+	            System.out.println("Name: " + currentCustomer.getCustName());
+	            System.out.println("Phone: " + currentCustomer.getCustPhone());
+	            System.out.println("Balance: " + currentCustomer.getBalance());
+	            System.out.println("Minimum Balance enforced: " + MIN_BALANCE);
+	            System.out.println("Applicable Interest Rate: " + totalInterestRate() + "%");
+
+		}
+		catch(IOException e){
+			System.out.println("Error while creating account");
+		}
+	}
+	}
+
+
+
+
+                    
